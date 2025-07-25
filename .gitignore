@@ -1,0 +1,18 @@
+# Node
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+.env.local
+
+# Next.js
+.next/
+
+# Databases
+*.db
+chroma_db/

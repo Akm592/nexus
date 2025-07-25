@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    restart: always
+    depends_on:
+      - api_gateway
+    networks:
+      - nexus-net
+
+  api_gateway:
+    build: ./api_gateway
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: always
+    depends_on:
+      - orchestrator
+    networks:
+      - nexus-net
+
+  orchestrator:
+    build: ./orchestrator
+    env_file:
+      - .env
+    environment:
+      - RAG_SERVICE_URL=http://rag_service:8002
+    restart: always
+    volumes:
+      - ./database:/app/database # Persists the SQLite DB
+    networks:
+      - nexus-net
+    depends_on:
+      - rag_service
+
+  rag_service: # NEW SERVICE
+    build: ./rag_service
+    env_file:
+      - .env
+    restart: always
+    volumes:
+      - ./database/chroma_db:/app/chroma_db # Persists the vector store
+    ports:
+      - "8002:8002" # Expose internally for the orchestrator
+    networks:
+      - nexus-net
+
+networks:
+  nexus-net:
+    driver: bridge

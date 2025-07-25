@@ -1,0 +1,17 @@
+# Common
+fastapi
+uvicorn
+python-dotenv
+requests
+
+# Orchestrator
+langchain
+langchain-openai
+sqlalchemy
+
+# RAG Service
+langchain-community
+chromadb
+sentence-transformers
+pypdf
+python-multipart

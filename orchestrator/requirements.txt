@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+langchain
+langchain-openai
+python-dotenv
+httpx
+SQLAlchemy
+ulid-py
+redis

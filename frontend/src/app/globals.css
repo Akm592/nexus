@@ -1,0 +1,155 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* #FFFFFF */
+    --foreground: 210 40% 23.1%; /* #2C3E50 */
+
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 210 40% 23.1%; /* #2C3E50 */
+
+    --popover: 0 0% 100%; /* #FFFFFF */
+    --popover-foreground: 210 40% 23.1%; /* #2C3E50 */
+
+    --primary: 214 70% 64.5%; /* #5896EB */
+    --primary-foreground: 0 0% 100%; /* White for text on primary */
+
+    --secondary: 0 0% 96.1%; /* #F5F5F5 */
+    --secondary-foreground: 210 40% 23.1%; /* #2C3E50 */
+
+    --muted: 0 0% 98%; /* #FAFAFA */
+    --muted-foreground: 210 40% 23.1%; /* #2C3E50 */
+
+    --accent: 207 100% 94%; /* #E3F2FD */
+    --accent-foreground: 210 40% 23.1%; /* #2C3E50 */
+
+    --destructive: 3 90% 58.4%; /* #F44336 */
+    --destructive-foreground: 0 0% 100%; /* White */
+
+    --border: 0 0% 87.8%; /* #E0E0E0 */
+    --input: 0 0% 87.8%; /* #E0E0E0 */
+    --ring: 214 70% 64.5%; /* #5896EB */
+
+    --radius: 0.5rem;
+
+    /* Custom colors from palette */
+    --chat-bubble-user: 0 0% 96.1%; /* #F5F5F5 */
+    --chat-bubble-bot: 207 100% 94%; /* #E3F2FD */
+    --text-dark-charcoal: 210 40% 23.1%; /* #2C3E50 */
+    --accent-soft-blue: 214 70% 64.5%; /* #5896EB */
+    --border-light-gray: 0 0% 87.8%; /* #E0E0E0 */
+    --success: 122 39% 31.4%; /* #4CAF50 */
+    --warning: 36 100% 50%; /* #FF9800 */
+    --error: 3 90% 58.4%; /* #F44336 */
+  }
+
+  .dark {
+    --background: 0 0% 10.2%; /* #1A1A1A */
+    --foreground: 0 0% 87.8%; /* #E0E0E0 */
+
+    --card: 0 0% 17.6%; /* #2D2D2D */
+    --card-foreground: 0 0% 87.8%; /* #E0E0E0 */
+
+    --popover: 0 0% 17.6%; /* #2D2D2D */
+    --popover-foreground: 0 0% 87.8%; /* #E0E0E0 */
+
+    --primary: 209 90% 67.1%; /* #64B5F6 */
+    --primary-foreground: 0 0% 10.2%; /* #1A1A1A */
+
+    --secondary: 0 0% 21.6%; /* #373737 */
+    --secondary-foreground: 0 0% 87.8%; /* #E0E0E0 */
+
+    --muted: 0 0% 21.6%; /* #373737 */
+    --muted-foreground: 0 0% 74.1%; /* #BDBDBD */
+
+    --accent: 214 40% 29.6%; /* #2A4A6B */
+    --accent-foreground: 0 0% 87.8%; /* #E0E0E0 */
+
+    --destructive: 2 83% 63.5%; /* #EF5350 */
+    --destructive-foreground: 0 0% 87.8%; /* #E0E0E0 */
+
+    --border: 0 0% 25.1%; /* #404040 */
+    --input: 0 0% 25.1%; /* #404040 */
+    --ring: 209 90% 67.1%; /* #64B5F6 */
+
+    /* Custom colors from palette */
+    --chat-bubble-user: 0 0% 21.6%; /* #373737 */
+    --chat-bubble-bot: 214 40% 29.6%; /* #2A4A6B */
+    --text-dark-charcoal: 0 0% 87.8%; /* #E0E0E0 */
+    --accent-soft-blue: 209 90% 67.1%; /* #64B5F6 */
+    --border-light-gray: 0 0% 25.1%; /* #404040 */
+    --success: 124 25% 57.1%; /* #66BB6A */
+    --warning: 36 100% 65.9%; /* #FFB74D */
+    --error: 2 83% 63.5%; /* #EF5350 */
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Glassmorphism styles */
+.glass-element {
+  background: hsla(var(--background), 0.1); /* Using background for transparency */
+  backdrop-filter: blur(10px);
+  border: 1px solid hsla(var(--foreground), 0.2); /* Using foreground for border color */
+  border-radius: 16px;
+  box-shadow: 0 8px 32px hsla(var(--foreground), 0.1);
+}
+
+.glassmorphism-input {
+  background: hsla(var(--input), 0.1);
+  backdrop-filter: blur(5px);
+  border: 1px solid hsla(var(--border), 0.3);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px hsla(var(--foreground), 0.05);
+}
+
+/* Custom scrollbar for minimalist design */
+.scroll-area-root {
+  overflow: hidden;
+}
+
+.scroll-area-viewport {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.scroll-area-thumb {
+  background-color: hsl(var(--muted-foreground));
+  border-radius: 9999px;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.scroll-area-thumb:hover {
+  background-color: hsl(var(--primary));
+}
+
+.scroll-area-corner {
+  background-color: hsl(var(--background));
+}
+
+/* Animation Guidelines */
+.message-enter {
+  transform: translateY(20px);
+  opacity: 0;
+  transition: all 0.3s ease-out;
+}
+
+.glass-hover {
+  transition: all 0.2s ease;
+}
+
+.glass-hover:hover {
+  background: hsla(var(--background), 0.15); /* Slightly more opaque on hover */
+  transform: translateY(-1px);
+}
