@@ -7,18 +7,21 @@ from sqlalchemy.orm import Session
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware # Added for CORS
 
-from .services import process_chat_request, generate_title_for_conversation
+from .services import process_chat_request, generate_title_for_conversation, AVAILABLE_MODELS
 from . import models, schemas, crud
+
 
 app = FastAPI()
 
 # Define RAG Service URL
-RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL", "http://localhost:8002")
+RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL")
 
-# Configure CORS to allow frontend requests
+# Configure CORS to allow frontend requests. Origins are loaded from environment variables.
+# Multiple origins can be specified, separated by commas.
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], # The origin of your Next.js app
+    allow_origins=CORS_ORIGINS, # The origin(s) of your Next.js app, loaded from env
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,24 +42,26 @@ def get_db():
 
 class ChatRequest(BaseModel):
     message: str
-    session_id: str # This will now be the conversation_id
+    conversation_id: str # This will now be the conversation_id
     model_name: str
 
 @app.post("/chat")
 async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Save user message
-    crud.add_message(db, request.session_id, "user", request.message)
+    crud.add_message(db, request.conversation_id, "user", request.message)
 
-    response = await process_chat_request(request.message, request.session_id, request.model_name, db)
+    response = await process_chat_request(request.message, request.conversation_id, request.model_name, db)
 
     # Save bot message after the full response is generated, only if it's not an error message
     if not response["reply"].startswith("Error:"):
-        crud.add_message(db, request.session_id, "bot", response["reply"])
+        crud.add_message(db, request.conversation_id, "bot", response["reply"])
 
-    # Trigger title generation in the background after the first few messages
-    messages_count = crud.get_message_count_by_conversation(db, request.session_id)
+    # Trigger title generation in the background after the first few messages.
+    # For production, consider using a more robust task queue (e.g., Celery, Redis Queue) 
+    # instead of FastAPI's BackgroundTasks for long-running or critical tasks.
+    messages_count = crud.get_message_count_by_conversation(db, request.conversation_id)
     if messages_count == 2: # After user's first message and bot's first reply
-        background_tasks.add_task(generate_title_for_conversation, request.session_id, models.SessionLocal)
+        background_tasks.add_task(generate_title_for_conversation, request.conversation_id, models.SessionLocal)
 
     return response
 
@@ -79,20 +84,27 @@ def read_messages_by_conversation(conversation_id: str, skip: int = 0, limit: in
 
 @app.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_conversation(conversation_id: str, db: Session = Depends(get_db)): # Make the function async
-    if not crud.delete_conversation(db, conversation_id):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    # First, delete the conversation from the main database.
+    # The crud.delete_conversation function now raises HTTPException on not found.
+    crud.delete_conversation(db, conversation_id)
     
-    # Add this block to call the RAG service
+    # Then, attempt to delete associated documents from the RAG service.
     try:
         async with httpx.AsyncClient() as client:
             rag_delete_url = f"{RAG_SERVICE_URL}/delete_by_conversation/{conversation_id}"
             response = await client.delete(rag_delete_url)
             response.raise_for_status() # Raise exception for 4xx/5xx errors
     except httpx.RequestError as e:
-        # Log this error. The primary conversation is deleted, but cleanup failed.
-        logging.warning(f"Failed to delete RAG documents for conversation {conversation_id}. Error: {e}")
+        # If the RAG service call fails, log the error and re-raise as an HTTPException.
+        # This ensures the API consumer is aware of the partial failure.
+        logging.error(f"Failed to delete RAG documents for conversation {conversation_id}. Error: {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Failed to clean up RAG documents: {e}")
+    except httpx.HTTPStatusError as e:
+        # Handle HTTP errors from the RAG service (e.g., 404 if documents not found in RAG, 500 for server errors)
+        logging.error(f"RAG service returned an error for conversation {conversation_id}: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(status_code=e.response.status_code, detail=f"RAG service error: {e.response.text}")
     
-    return # The original endpoint had no return, so we maintain that
+    return # No content to return for 204 No Content status
 
 @app.put("/messages/{message_id}", response_model=schemas.Message)
 def update_message(message_id: str, message: schemas.MessageUpdate, db: Session = Depends(get_db)):
@@ -101,3 +113,7 @@ def update_message(message_id: str, message: schemas.MessageUpdate, db: Session 
     if not db_message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
     return db_message
+
+@app.get("/models")
+async def get_available_models():
+    return {"models": AVAILABLE_MODELS}

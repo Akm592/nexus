@@ -18,6 +18,9 @@ class Message(MessageBase):
     timestamp: datetime
 
     class Config:
+        # Pydantic's `from_attributes = True` enables the ORM mode.
+        # This tells Pydantic to read data from attributes rather than dictionary keys,
+        # which is necessary when mapping Pydantic models to SQLAlchemy ORM models.
         from_attributes = True
 
 class ConversationBase(BaseModel):
@@ -32,6 +35,9 @@ class Conversation(ConversationBase):
     messages: List[Message] = []
 
     class Config:
+        # Pydantic's `from_attributes = True` enables the ORM mode.
+        # This tells Pydantic to read data from attributes rather than dictionary keys,
+        # which is necessary when mapping Pydantic models to SQLAlchemy ORM models.
         from_attributes = True
 
 class ConversationSummary(ConversationBase):
@@ -39,4 +45,7 @@ class ConversationSummary(ConversationBase):
     created_at: datetime
 
     class Config:
+        # Pydantic's `from_attributes = True` enables the ORM mode.
+        # This tells Pydantic to read data from attributes rather than dictionary keys,
+        # which is necessary when mapping Pydantic models to SQLAlchemy ORM models.
         from_attributes = True

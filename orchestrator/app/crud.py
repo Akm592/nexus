@@ -39,16 +39,18 @@ def update_conversation_title(db: Session, conversation_id: str, new_title: str)
         db.refresh(db_conversation)
     return db_conversation
 
-def update_message_and_truncate_history(db: Session, message_id: str, new_content: str):
-    # Step 1: Find the message to edit
-    db_message = db.query(models.Message).filter(models.Message.id == message_id).first()
+def update_message_and_truncate_history(db: Session, message_id: str, new_content: str, update_timestamp: bool = True):
+    # Use a database-level lock to prevent race conditions during the update and truncation.
+    # This ensures that no other transaction can modify the conversation row until this transaction is complete.
+    db_message = db.query(models.Message).filter(models.Message.id == message_id).with_for_update().first()
     if not db_message:
         return None # Message not found
 
     conversation_id = db_message.conversation_id
     edit_timestamp = db_message.timestamp
 
-    # Step 2: Delete all messages in the same conversation that occurred AFTER the message being edited
+    # Delete all messages in the same conversation that occurred AFTER the message being edited.
+    # This effectively "truncates" the conversation history from the point of the edited message.
     db.query(models.Message).filter(
         and_(
             models.Message.conversation_id == conversation_id,
@@ -56,18 +58,27 @@ def update_message_and_truncate_history(db: Session, message_id: str, new_conten
         )
     ).delete(synchronize_session=False)
 
-    # Step 3: Update the content of the target message
+    # Update the content of the target message.
     db_message.content = new_content
-    db_message.timestamp = datetime.utcnow() # Optionally update timestamp to signify it's the latest
+    
+    # Optionally update the timestamp to signify that this message is now the latest in the truncated history.
+    if update_timestamp:
+        db_message.timestamp = datetime.utcnow() 
     
     db.commit()
     db.refresh(db_message)
     return db_message
 
 def delete_conversation(db: Session, conversation_id: str):
+    # Retrieve the conversation to be deleted.
     db_conversation = db.query(models.Conversation).filter(models.Conversation.id == conversation_id).first()
-    if db_conversation:
-        db.delete(db_conversation)
-        db.commit()
-        return True
-    return False
+    if not db_conversation:
+        # If the conversation does not exist, raise an HTTPException with a 404 status code.
+        # This provides a standardized way to signal that the resource was not found.
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    
+    # If the conversation exists, delete it from the database.
+    db.delete(db_conversation)
+    db.commit()
+    return True # Indicate successful deletion

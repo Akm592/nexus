@@ -27,7 +27,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("qwen/qwen2-7b-instruct:free");
+  const [selectedModel, setSelectedModel] = useState("deepseek/deepseek-r1-0528-qwen3-8b:free");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -92,6 +93,23 @@ export default function ChatPage() {
 
   useEffect(() => {
     fetchConversations();
+    const fetchModels = async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/models`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch available models");
+        }
+        const data = await response.json();
+        setAvailableModels(data.models);
+        if (data.models.length > 0 && !data.models.includes(selectedModel)) {
+          setSelectedModel(data.models[0]); // Set default if current model is not available
+        }
+      } catch (error) {
+        console.error("Error fetching models:", error);
+        toast.error("Failed to load available models.");
+      }
+    };
+    fetchModels();
   }, []);
 
   const handleNewChat = async () => {
@@ -156,6 +174,12 @@ export default function ChatPage() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
+      // Validate file type before sending
+      if (file.type !== "application/pdf") {
+        toast.error("Only PDF files are allowed.");
+        event.target.value = ''; // Clear the input
+        return;
+      }
       setSelectedFile(file);
       handleUpload(file);
       // Reset the input value to allow re-uploading the same file
@@ -164,16 +188,18 @@ export default function ChatPage() {
   };
 
   const handleUpload = async (file: File) => {
-    if (!file) return;
+    if (!file || !currentSessionId) return; // Ensure conversation_id is available
 
     setIsUploading(true);
     setError(null);
+    toast.info(`Uploading ${file.name}...`);
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("conversation_id", currentSessionId); // Pass conversation_id as form data
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/rag_service/upload`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_RAG_SERVICE_URL}/upload`, {
         method: "POST",
         body: formData,
       });
@@ -184,10 +210,12 @@ export default function ChatPage() {
       }
 
       const result = await response.json();
+      toast.success(`File accepted: ${result.message}`);
       console.log("Upload successful:", result);
     } catch (error: any) {
       console.error("Error uploading file:", error);
       setError(error.message || "An error occurred during file upload.");
+      toast.error(error.message || "An error occurred during file upload.");
     } finally {
       setIsUploading(false);
       setSelectedFile(null);
@@ -241,7 +269,7 @@ export default function ChatPage() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, model_name: selectedModel, session_id: currentSessionId }),
+        body: JSON.stringify({ message: input, model_name: selectedModel, conversation_id: currentSessionId }),
       });
 
       if (!response.ok) {
@@ -296,7 +324,7 @@ export default function ChatPage() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
-                  <SettingsPanel selectedModel={selectedModel} setSelectedModel={setSelectedModel} />
+                  <SettingsPanel selectedModel={selectedModel} setSelectedModel={setSelectedModel} availableModels={availableModels} />
                 </DialogContent>
               </Dialog>
               <ThemeToggle />
@@ -310,7 +338,7 @@ export default function ChatPage() {
                 type="file"
                 className="hidden"
                 onChange={handleFileChange}
-                accept=".pdf,.txt,.md"
+                accept=".pdf"
               />
               {isUploading && <span className="text-sm text-muted-foreground ml-2">Uploading...</span>}
             </div>

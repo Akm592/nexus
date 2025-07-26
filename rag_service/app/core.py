@@ -1,88 +1,95 @@
 import logging
 import os
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-
 import uuid
-
-# Use a local, open-source embedding model that runs on the CPU
-embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_chroma import Chroma
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyMuPDFLoader
+import chromadb # Import the native chromadb client
 
 from dotenv import load_dotenv
-
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Define a persistent directory in the project root
-PERSIST_DIRECTORY = os.getenv("CHROMA_DB_PERSIST_DIRECTORY", "../../chroma_db_local")
+# --- START OF FIXES ---
 
-vectorstore_instance = None
-
-def get_vectorstore():
-    """Get or create a persistent Chroma vector store"""
-    global vectorstore_instance
-    if vectorstore_instance is None:
-        if not os.path.exists(PERSIST_DIRECTORY):
-            os.makedirs(PERSIST_DIRECTORY)
-        
-        vectorstore_instance = Chroma(
-            persist_directory=PERSIST_DIRECTORY,
-            embedding_function=embedding_model
-        )
-    return vectorstore_instance
-
+# 1. Define the text_splitter at the module level
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 
-    vectorstore = vectorstore if vectorstore else get_vectorstore()
+# 2. Use a local, open-source embedding model from the new package
+embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2", model_kwargs={'device': 'cpu'})
+
+# 3. Define a persistent directory
+PERSIST_DIRECTORY = os.getenv("CHROMA_DB_PERSIST_DIRECTORY", "../../chroma_db_local")
+
+# 4. Use the native ChromaDB client for collection management (create, delete, get)
+# This client will manage the database files in the persist directory.
+chroma_client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
+
+def ingest_document(file_path: str, file_name: str, conversation_id: str):
+    """
+    Ingests a PDF document into a conversation-specific Chroma collection.
+    """
+    collection_name = f"conv_{conversation_id.replace('-', '_')}"
     
-    if file_path.endswith(".pdf"):
-        loader = PyPDFLoader(file_path)
-    else: # Assume it's a text file
-        loader = TextLoader(file_path)
-        
-    documents = loader.load()
+    try:
+        loader = PyMuPDFLoader(file_path)
+        documents = loader.load()
+    except Exception as e:
+        logging.error(f"Failed to load PDF {file_name} for conversation {conversation_id}. It may be corrupted or password-protected. Error: {e}")
+        raise ValueError(f"Failed to process PDF: {file_name}. It may be corrupted or password-protected.")
+
     chunks = text_splitter.split_documents(documents)
     
-    # Add conversation_id to each chunk's metadata
-    for chunk in chunks:
-        if chunk.metadata is None:
-            chunk.metadata = {}
-        chunk.metadata["conversation_id"] = conversation_id
-
-    vectorstore.add_documents(chunks, ids=[str(uuid.uuid4()) for _ in range(len(chunks))])
-    logging.info(f"Ingested {len(chunks)} chunks from {file_name} for conversation {conversation_id}")
-
-def search_documents(query: str, conversation_id: str, k: int = 4, vectorstore=None):
-    vectorstore = vectorstore if vectorstore else get_vectorstore()
-    # The filter MUST be passed in the search_kwargs of the as_retriever method.
-    retriever = vectorstore.as_retriever(
-        search_kwargs={
-            "k": k,
-            "filter": {
-                "conversation_id": conversation_id
-            }
-        }
+    # Use the LangChain Chroma wrapper specifically for adding documents.
+    # It will use the same underlying persistent client and directory.
+    Chroma.from_documents(
+        documents=chunks,
+        embedding=embedding_model,
+        collection_name=collection_name,
+        persist_directory=PERSIST_DIRECTORY,
+        ids=[str(uuid.uuid4()) for _ in range(len(chunks))]
     )
-    # The invoke method should just take the query.
-    # The incorrect `config` parameter has been removed.
-    return retriever.invoke(query)
+    logging.info(f"Ingested {len(chunks)} chunks from {file_name} into collection '{collection_name}'")
 
-def delete_documents_by_conversation_id(conversation_id: str, vectorstore=None):
-    vectorstore = vectorstore if vectorstore else get_vectorstore()
-    chroma_client = vectorstore._collection
+def search_documents(query: str, conversation_id: str, k: int = 4):
+    """
+    Searches for documents within a specific conversation's collection.
+    """
+    collection_name = f"conv_{conversation_id.replace('-', '_')}"
     
-    results = chroma_client.get(
-        where={"conversation_id": conversation_id},
-        include=[] # We only need the IDs
+    try:
+        # Use the native client to check if the collection exists. This is the correct way.
+        chroma_client.get_collection(name=collection_name)
+    except ValueError:
+        logging.warning(f"Search attempted on non-existent collection: {collection_name}")
+        return []
+        
+    # If the collection exists, create a LangChain Chroma instance to perform the search.
+    vector_store = Chroma(
+        persist_directory=PERSIST_DIRECTORY,
+        embedding_function=embedding_model,
+        collection_name=collection_name
     )
     
-    ids_to_delete = results.get('ids', [])
-    
-    if ids_to_delete:
-        vectorstore.delete(ids=ids_to_delete)
-        logging.info(f"Deleted {len(ids_to_delete)} documents for conversation ID: {conversation_id}")
-    else:
-        print(f"No documents found for conversation ID: {conversation_id}")
+    results = vector_store.similarity_search(query, k=k)
+    return results
+
+def delete_collection_for_conversation(conversation_id: str):
+    """
+    Deletes the entire collection associated with a conversation ID.
+    """
+    collection_name = f"conv_{conversation_id.replace('-', '_')}"
+    try:
+        # Use the native client to delete the collection. This is the correct method.
+        chroma_client.delete_collection(name=collection_name)
+        logging.info(f"Successfully deleted collection: {collection_name}")
+    except ValueError:
+        logging.warning(f"Attempted to delete non-existent collection: {collection_name}")
+        pass
+    except Exception as e:
+        logging.error(f"Error deleting collection {collection_name}: {e}")
+        raise
+
+# --- END OF FIXES ---

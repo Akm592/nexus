@@ -1,63 +1,119 @@
+import magic # For file type validation
 import logging
 import os
 import shutil
 import tempfile
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware # Added for CORS
+# CHANGED: Import the new/renamed functions from core
+from .core import ingest_document, search_documents, delete_collection_for_conversation
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+app = FastAPI()
 
-from .core import ingest_document, search_documents, delete_documents_by_conversation_id, get_vectorstore
+# Configure CORS to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"], # The origin of your Next.js app
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
+class DeleteResponse(BaseModel):
+    status: str
+    message: str
 
+# NEW: Response model for the upload endpoint
+class UploadResponse(BaseModel):
+    status: str
+    message: str
+    filename: str
+    conversation_id: str
 
-# Dependency to get the vectorstore instance
-def get_vectorstore_dependency():
-    return get_vectorstore()
+@app.post("/upload", response_model=UploadResponse)
+async def upload_document(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...), 
+    conversation_id: str = Form(...)
+):
+    # --- Start of New Validation Logic ---
+    
+    # 1. Basic Content-Type Check (First line of defense)
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Unsupported file type. Only PDFs are allowed.")
 
-@app.post("/upload")
-async def upload_document(file: UploadFile = File(...), conversation_id: str = Form(...), vectorstore = Depends(get_vectorstore_dependency)):
-    # Validate content type
-    allowed_content_types = ["application/pdf", "text/plain"]
-    if file.content_type not in allowed_content_types:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}. Only PDF and text files are allowed.")
-    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-        shutil.copyfileobj(file.file, temp_file)
-        temp_file_path = temp_file.name
-
+    # 2. Securely stream to a temporary file
     try:
-        ingest_document(temp_file_path, file.filename, conversation_id, vectorstore)
-        return {"status": "success", "filename": file.filename, "conversation_id": conversation_id}
-    except IOError as e:
-        raise HTTPException(status_code=500, detail=f"File operation error: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing file for ingestion: {e}")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            shutil.copyfileobj(file.file, temp_file)
+            temp_file_path = temp_file.name
     finally:
-        os.unlink(temp_file_path) # Ensure the temporary file is deleted
+        file.file.close()
+    
+    # 3. Content Validation with python-magic (More secure)
+    mime = magic.Magic(mime=True)
+    file_type = mime.from_file(temp_file_path)
+    if file_type != "application/pdf":
+        os.unlink(temp_file_path) # Clean up the invalid temp file
+        raise HTTPException(status_code=400, detail=f"File content validation failed. Expected PDF, but found {file_type}.")
+
+    # --- End of New Validation Logic ---
+
+    # NEW: Add the time-consuming ingestion process to the background
+    # The API will return a response immediately while this runs.
+    # We pass the temp file path to the background task and create another function to clean it up.
+    background_tasks.add_task(run_ingestion_and_cleanup, temp_file_path, file.filename, conversation_id)
+
+    return {
+        "status": "processing", 
+        "message": "File accepted and is being processed in the background.",
+        "filename": file.filename, 
+        "conversation_id": conversation_id
+    }
+
+# NEW: Helper function to be run by BackgroundTasks
+def run_ingestion_and_cleanup(file_path: str, filename: str, conversation_id: str):
+    """
+    Task to run ingestion and ensure the temporary file is deleted afterward.
+    """
+    try:
+        # The new ingest_document function can raise a ValueError
+        ingest_document(file_path, filename, conversation_id)
+    except Exception as e:
+        # Log any errors during background ingestion.
+        # For a production system, you might want to add more robust error reporting here
+        # (e.g., updating a status in a database).
+        logging.error(f"Background ingestion failed for {filename} in conversation {conversation_id}: {e}")
+    finally:
+        # IMPORTANT: Always clean up the temporary file
+        os.unlink(file_path)
 
 class SearchRequest(BaseModel):
     query: str
     conversation_id: str
-    top_k: int = 3 # Allow specifying how many chunks to retrieve
+    top_k: int = 4
 
 class DocumentChunk(BaseModel):
-    content: str
-    metadata: dict # Will contain the source filename, page number, etc.
+    page_content: str # Renamed from 'content' to match LangChain's Document object
+    metadata: dict
 
 @app.post("/retrieve", response_model=list[DocumentChunk])
-async def retrieve_documents(request: SearchRequest, vectorstore = Depends(get_vectorstore_dependency)):
+async def retrieve_documents(request: SearchRequest):
     """Retrieves relevant document chunks from the vector store."""
     try:
-        results = search_documents(query=request.query, conversation_id=request.conversation_id, k=request.top_k, vectorstore=vectorstore)
-        return [DocumentChunk(content=doc.page_content, metadata=doc.metadata) for doc in results]
+        results = search_documents(query=request.query, conversation_id=request.conversation_id, k=request.top_k)
+        # CHANGED: Access page_content attribute directly
+        return [DocumentChunk(page_content=doc.page_content, metadata=doc.metadata) for doc in results]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error during document retrieval: {e}")
 
+# CHANGED: The delete endpoint now calls the new function to delete the entire collection
 @app.delete("/delete_by_conversation/{conversation_id}", response_model=DeleteResponse)
-async def delete_documents(conversation_id: str, vectorstore = Depends(get_vectorstore_dependency)):
-    """Deletes documents associated with a specific conversation ID from the vector store."""
+async def delete_documents(conversation_id: str):
+    """Deletes the entire data collection associated with a specific conversation ID."""
     try:
-        delete_documents_by_conversation_id(conversation_id, vectorstore)
-        return {"status": "success", "message": f"Documents for conversation ID {conversation_id} deleted."}
+        delete_collection_for_conversation(conversation_id)
+        return {"status": "success", "message": f"Data for conversation ID {conversation_id} deleted."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error during document deletion: {e}")

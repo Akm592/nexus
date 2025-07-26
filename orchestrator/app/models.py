@@ -9,8 +9,10 @@ import ulid
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./database/chat_history.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+# For SQLite, check_same_thread must be False to allow multiple threads to interact with the database.
+# This is common in web applications where each request might be handled in a different thread.
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 class Base(DeclarativeBase):
@@ -28,7 +30,7 @@ class Conversation(Base):
 class Message(Base):
     __tablename__ = "messages"
 
-    id = Column(String, primary_key=True, default=lambda: str(ulid.new()))
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     conversation_id = Column(String, ForeignKey("conversations.id"), index=True)
     role = Column(String)
     content = Column(Text)
