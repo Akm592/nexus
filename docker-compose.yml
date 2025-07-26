@@ -7,18 +7,6 @@ services:
       - "3000:3000"
     restart: always
     depends_on:
-      - api_gateway
-    networks:
-      - nexus-net
-
-  api_gateway:
-    build: ./api_gateway
-    env_file:
-      - .env
-    ports:
-      - "8000:8000"
-    restart: always
-    depends_on:
       - orchestrator
     networks:
       - nexus-net
@@ -27,8 +15,11 @@ services:
     build: ./orchestrator
     env_file:
       - .env
+    ports:
+      - "8001:8000"
     environment:
       - RAG_SERVICE_URL=http://rag_service:8002
+      - CORS_ORIGINS=http://localhost:3000
     restart: always
     volumes:
       - ./database:/app/database # Persists the SQLite DB

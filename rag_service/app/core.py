@@ -58,23 +58,31 @@ def search_documents(query: str, conversation_id: str, k: int = 4):
     Searches for documents within a specific conversation's collection.
     """
     collection_name = f"conv_{conversation_id.replace('-', '_')}"
-    
+    logging.info(f"Searching in collection: {collection_name} for query: '{query}'")
+
     try:
-        # Use the native client to check if the collection exists. This is the correct way.
+        logging.info(f"Step 1: Checking if collection '{collection_name}' exists.")
         chroma_client.get_collection(name=collection_name)
-    except ValueError:
-        logging.warning(f"Search attempted on non-existent collection: {collection_name}")
-        return []
+        logging.info(f"Step 2: Collection '{collection_name}' found. Initializing vector store.")
         
-    # If the collection exists, create a LangChain Chroma instance to perform the search.
-    vector_store = Chroma(
-        persist_directory=PERSIST_DIRECTORY,
-        embedding_function=embedding_model,
-        collection_name=collection_name
-    )
-    
-    results = vector_store.similarity_search(query, k=k)
-    return results
+        vector_store = Chroma(
+            persist_directory=PERSIST_DIRECTORY,
+            embedding_function=embedding_model,
+            collection_name=collection_name
+        )
+        logging.info("Step 3: Vector store initialized. Performing similarity search.")
+        
+        results = vector_store.similarity_search(query, k=k)
+        logging.info(f"Step 4: Similarity search completed. Found {len(results)} results.")
+        return results
+
+    except chromadb.errors.NotFoundError:
+        logging.warning(f"Search attempted on non-existent collection: {collection_name}. The collection does not exist.")
+        return []
+    except Exception as e:
+        logging.error(f"An unexpected error occurred during search in collection '{collection_name}': {e}", exc_info=True)
+        # Re-raise the exception to be caught by the FastAPI error handler
+        raise
 
 def delete_collection_for_conversation(conversation_id: str):
     """
