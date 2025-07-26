@@ -108,7 +108,7 @@ async def process_chat_request(message: str, session_id: str, model_name: str, d
     # 3. CALL THE LLM with the raw user message
     try:
         llm_response = conversation.invoke({"input": message}, config={"configurable": {"session_id": session_id}}) # Pass the raw user message
-        return {"reply": llm_response.get('response', ''), "sources": sources}
+        return {"reply": llm_response.content, "sources": sources}
     except Exception as e:
         print(f"ERROR: LLM invocation failed: {e}")
         return {"reply": f"Error: LLM response failed. ({e})", "sources": []}

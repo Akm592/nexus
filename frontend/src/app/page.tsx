@@ -10,8 +10,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Bot, User, Settings, MessageSquarePlus, Copy, Upload, Pencil } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { SettingsPanel } from "@/components/settings-panel";
+import { SideMenu } from "@/components/side-menu";
+import { ChatInput } from "@/components/chat-input";
 import { ConversationHistory } from "@/components/conversation-history";
 import { toast } from "sonner";
 
@@ -317,16 +317,7 @@ export default function ChatPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Settings" className="text-muted-foreground hover:bg-muted/50">
-                    <Settings className="h-5 w-5" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <SettingsPanel selectedModel={selectedModel} setSelectedModel={setSelectedModel} availableModels={availableModels} />
-                </DialogContent>
-              </Dialog>
+              <SideMenu selectedModel={selectedModel} setSelectedModel={setSelectedModel} availableModels={availableModels} />
               <ThemeToggle />
               <label htmlFor="file-upload" className="cursor-pointer">
                 <Button variant="ghost" size="icon" aria-label="Upload Document" asChild>
@@ -463,22 +454,14 @@ export default function ChatPage() {
             </ScrollArea>
           </CardContent>
           <div className="p-4 border-t bg-background/50 backdrop-blur-sm">
-            <form onSubmit={handleSubmit} className="flex items-center gap-3">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-grow rounded-full py-3 px-5 text-base bg-input border-border focus:ring-2 focus:ring-primary focus:border-transparent"
-                disabled={isLoading}
-              />
-              <Button type="submit" className="rounded-full w-12 h-12 bg-primary text-primary-foreground hover:bg-primary/90" disabled={isLoading || isUploading || !input.trim()}>
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-foreground"></div>
-                ) : (
-                  <Send className="h-5 w-5" />
-                )}
-              </Button>
-            </form>
+            <ChatInput
+              input={input}
+              setInput={setInput}
+              handleFileChange={handleFileChange}
+              handleSubmit={handleSubmit}
+              isLoading={isLoading}
+              isUploading={isUploading}
+            />
           </div>
         </Card>
       </div>

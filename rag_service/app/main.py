@@ -5,8 +5,8 @@ import shutil
 import tempfile
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from pydantic import BaseModel
-from fastapi.middleware.cors import CORSMiddleware # Added for CORS
-# CHANGED: Import the new/renamed functions from core
+from fastapi.middleware.cors import CORSMiddleware 
+
 from .core import ingest_document, search_documents, delete_collection_for_conversation
 
 app = FastAPI()

@@ -27,9 +27,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <div className="flex h-screen">
-            <aside className="w-64 border-r bg-background p-4 overflow-y-auto">
-              <ConversationHistory />
-            </aside>
+  
             <main className="flex-1 flex flex-col">
               {children}
             </main>
