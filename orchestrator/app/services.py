@@ -8,7 +8,7 @@ from langchain_community.chat_message_histories import RedisChatMessageHistory
 from langchain.schema import SystemMessage # Added for RAG context as system message
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
-from typing import List, AsyncGenerator, Tuple
+from typing import List, AsyncGenerator, Tuple, Optional
 from fastapi import HTTPException, status # Added for HTTPException
 from pydantic import AnyUrl # Added for URL validation
 from . import crud, schemas, models
@@ -24,7 +24,7 @@ AVAILABLE_MODELS = os.getenv("AVAILABLE_MODELS", "qwen/qwen3-coder:free,qwen/qwe
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL") # Removed fallback, now required
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-async def process_chat_request(message: str, session_id: str, model_name: str, db) -> dict:
+async def process_chat_request(message: str, session_id: str, model_name: Optional[str], system_prompt: Optional[str], temperature: Optional[float], db) -> dict:
     # Input Validation: Validate the length of the incoming message.
     MAX_MESSAGE_LENGTH = 2000 # Define a reasonable max length
     if len(message) > MAX_MESSAGE_LENGTH:
@@ -32,9 +32,8 @@ async def process_chat_request(message: str, session_id: str, model_name: str, d
 
     logging.debug(f"RAG_SERVICE_URL: {RAG_SERVICE_URL}")
 
-    # Validate if the selected model is provided.
-    if not model_name:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Model name cannot be empty.")
+    # Use provided model_name or default
+    final_model_name = model_name if model_name else AVAILABLE_MODELS[0] if AVAILABLE_MODELS else "qwen/qwen2-72b-instruct:free"
 
     # Validate RAG_SERVICE_URL using Pydantic's AnyUrl for robust validation.
     try:
@@ -71,17 +70,17 @@ async def process_chat_request(message: str, session_id: str, model_name: str, d
     # The SQL DB now serves as permanent, long-term storage, not active memory.
     # Redis history is now managed by RunnableWithMessageHistory
 
-    # Initialize the LLM with the selected model
+    # Initialize the LLM with the selected model and temperature
     llm = ChatOpenAI(
-        model=model_name,
+        model=final_model_name,
         openai_api_key=os.getenv("OPENROUTER_API_KEY"),
         openai_api_base="https://openrouter.ai/api/v1",
-        temperature=0.7,
+        temperature=temperature if temperature is not None else 0.7, # Use persona temperature or default
     )
 
     # Create the conversation chain
     # Using RunnableWithMessageHistory as recommended by LangChain for managing chat history
-    system_message_content = "You are a helpful AI assistant."
+    system_message_content = system_prompt if system_prompt else "You are a helpful AI assistant."
     if context_str:
         system_message_content += f"\n\nAnswer the user's question based only on the provided context. If the answer is not in the context, state that you do not know. Context: {context_str}"
 

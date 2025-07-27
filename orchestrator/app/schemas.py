@@ -49,3 +49,19 @@ class ConversationSummary(ConversationBase):
         # This tells Pydantic to read data from attributes rather than dictionary keys,
         # which is necessary when mapping Pydantic models to SQLAlchemy ORM models.
         from_attributes = True
+
+class PersonaBase(BaseModel):
+    name: str
+    model_name: str
+    system_prompt: str
+    temperature: float
+
+class PersonaCreate(PersonaBase):
+    pass
+
+class Persona(PersonaBase):
+    id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

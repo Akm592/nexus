@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware # Added for CORS
 from .services import process_chat_request, generate_title_for_conversation, AVAILABLE_MODELS
 from . import models, schemas, crud
 
+from typing import Optional
+
 
 app = FastAPI()
 
@@ -42,15 +44,35 @@ def get_db():
 
 class ChatRequest(BaseModel):
     message: str
-    conversation_id: str # This will now be the conversation_id
-    model_name: str
+    conversation_id: str
+    persona_id: Optional[str] = None # New: Optional persona_id
 
 @app.post("/chat")
 async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Save user message
     crud.add_message(db, request.conversation_id, "user", request.message)
 
-    response = await process_chat_request(request.message, request.conversation_id, request.model_name, db)
+    model_name = None
+    system_prompt = None
+    temperature = None
+
+    if request.persona_id:
+        persona = crud.get_persona(db, request.persona_id)
+        if persona:
+            model_name = persona.model_name
+            system_prompt = persona.system_prompt
+            temperature = persona.temperature
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona not found")
+
+    response = await process_chat_request(
+        request.message,
+        request.conversation_id,
+        model_name, # Pass persona's model_name or None
+        system_prompt, # Pass persona's system_prompt or None
+        temperature, # Pass persona's temperature or None
+        db
+    )
 
     # Save bot message after the full response is generated, only if it's not an error message
     if not response["reply"].startswith("Error:"):
@@ -117,3 +139,26 @@ def update_message(message_id: str, message: schemas.MessageUpdate, db: Session 
 @app.get("/models")
 async def get_available_models():
     return {"models": AVAILABLE_MODELS}
+
+@app.post("/personas", response_model=schemas.Persona)
+def create_persona(persona: schemas.PersonaCreate, db: Session = Depends(get_db)):
+    return crud.create_persona(db=db, persona=persona)
+
+@app.get("/personas", response_model=List[schemas.Persona])
+def read_personas(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    personas = crud.get_personas(db, skip=skip, limit=limit)
+    return personas
+
+@app.put("/personas/{persona_id}", response_model=schemas.Persona)
+def update_persona(persona_id: str, persona: schemas.PersonaCreate, db: Session = Depends(get_db)):
+    db_persona = crud.update_persona(db, persona_id, persona)
+    if not db_persona:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona not found")
+    return db_persona
+
+@app.delete("/personas/{persona_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_persona(persona_id: str, db: Session = Depends(get_db)):
+    success = crud.delete_persona(db, persona_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona not found")
+    return

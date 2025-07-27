@@ -6,3 +6,40 @@ export const availableModels = [
   { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama-3.1-8B-Instruct' },
   { id: 'deepseek/deepseek-chat:free', name: 'Deepseek-Chat' },
 ];
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+  messages: Message[];
+}
+
+export interface Persona {
+  id: string;
+  name: string;
+  model_name: string;
+  system_prompt: string;
+  temperature: number;
+  created_at: string;
+}
+
+export interface CreatePersonaData {
+  name: string;
+  model_name: string;
+  system_prompt: string;
+  temperature: number;
+}

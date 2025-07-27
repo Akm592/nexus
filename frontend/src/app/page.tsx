@@ -14,6 +14,7 @@ import { SideMenu } from "@/components/side-menu";
 import { ChatInput } from "@/components/chat-input";
 import { ConversationHistory } from "@/components/conversation-history";
 import { toast } from "sonner";
+import { useChatStore } from "@/lib/store";
 
 interface Message {
   id: string;
@@ -23,6 +24,7 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const { activePersonaId } = useChatStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -269,7 +271,7 @@ export default function ChatPage() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, model_name: selectedModel, conversation_id: currentSessionId }),
+        body: JSON.stringify({ message: input, conversation_id: currentSessionId, persona_id: activePersonaId }),
       });
 
       if (!response.ok) {

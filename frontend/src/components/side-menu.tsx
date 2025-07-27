@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/sheet"
 import { Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PersonaManager } from "./PersonaManager"
+import { useChatStore } from "@/lib/store"
 
 interface SideMenuProps {
   selectedModel: string
@@ -28,6 +30,12 @@ export function SideMenu({
   setSelectedModel,
   availableModels,
 }: SideMenuProps) {
+  const { personas, activePersonaId, setActivePersonaId, fetchPersonas } = useChatStore();
+
+  React.useEffect(() => {
+    fetchPersonas();
+  }, [fetchPersonas]);
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -65,6 +73,24 @@ export function SideMenu({
               </SelectContent>
             </Select>
           </div>
+          <div className="grid grid-cols-3 items-center gap-4">
+            <label htmlFor="persona" className="text-sm text-muted-foreground">
+              Persona
+            </label>
+            <Select value={activePersonaId || ""} onValueChange={setActivePersonaId}>
+              <SelectTrigger className="col-span-2">
+                <SelectValue placeholder="Select a persona" />
+              </SelectTrigger>
+              <SelectContent>
+                {personas.map((persona) => (
+                  <SelectItem key={persona.id} value={persona.id}>
+                    {persona.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <PersonaManager />
         </div>
       </SheetContent>
     </Sheet>

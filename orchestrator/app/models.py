@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, Text, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, String, Text, DateTime, ForeignKey, Float
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -37,6 +37,16 @@ class Message(Base):
     timestamp = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("Conversation", back_populates="messages")
+
+class Persona(Base):
+    __tablename__ = "personas"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, unique=True, index=True)
+    model_name = Column(String)
+    system_prompt = Column(Text)
+    temperature = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 # Create tables
 def create_db_and_tables():
