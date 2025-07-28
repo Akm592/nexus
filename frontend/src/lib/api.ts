@@ -64,6 +64,38 @@ export const fetchAvailableModels = async (): Promise<string[]> => {
   return data.models;
 };
 
+export const getOllamaModels = async (): Promise<any[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/ollama/models`);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.models;
+};
+
+export const pullOllamaModel = async (modelName: string): Promise<Response> => {
+  const response = await fetch(`${API_BASE_URL}/api/ollama/pull`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: modelName }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response;
+};
+
+export const deleteOllamaModel = async (modelName: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/ollama/models/${modelName}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+};
+
 export const getPersonas = async (): Promise<Persona[]> => {
   const response = await fetch(`${API_BASE_URL}/personas`);
   if (!response.ok) {

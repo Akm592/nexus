@@ -7,11 +7,12 @@ from langchain.memory import ConversationBufferMemory
 from langchain_community.chat_message_histories import RedisChatMessageHistory
 from langchain.schema import SystemMessage # Added for RAG context as system message
 from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import ChatOllama # New: Import ChatOllama
 from dotenv import load_dotenv
 from typing import List, AsyncGenerator, Tuple, Optional
 from fastapi import HTTPException, status # Added for HTTPException
 from pydantic import AnyUrl # Added for URL validation
-from . import crud, schemas, models
+from . import crud, schemas, models, ollama_client # New: Import ollama_client
 from pydantic_settings import BaseSettings, SettingsConfigDict
 load_dotenv()
 
@@ -71,12 +72,24 @@ async def process_chat_request(message: str, session_id: str, model_name: Option
     # Redis history is now managed by RunnableWithMessageHistory
 
     # Initialize the LLM with the selected model and temperature
-    llm = ChatOpenAI(
-        model=final_model_name,
-        openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-        openai_api_base="https://openrouter.ai/api/v1",
-        temperature=temperature if temperature is not None else 0.7, # Use persona temperature or default
-    )
+    ollama_models = await ollama_client.list_local_models()
+    local_model_names = [m['name'] for m in ollama_models.get('models', [])]
+
+    if final_model_name in local_model_names:
+        logging.info(f"Using local Ollama model: {final_model_name}")
+        llm = ChatOllama(
+            model=final_model_name,
+            base_url=os.getenv("OLLAMA_API_URL", "http://localhost:11434"),
+            temperature=temperature if temperature is not None else 0.7,
+        )
+    else:
+        logging.info(f"Using OpenRouter model: {final_model_name}")
+        llm = ChatOpenAI(
+            model=final_model_name,
+            openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+            openai_api_base="https://openrouter.ai/api/v1",
+            temperature=temperature if temperature is not None else 0.7, # Use persona temperature or default
+        )
 
     # Create the conversation chain
     # Using RunnableWithMessageHistory as recommended by LangChain for managing chat history

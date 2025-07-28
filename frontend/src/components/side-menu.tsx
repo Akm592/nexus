@@ -17,6 +17,7 @@ import {
 import { Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PersonaManager } from "./PersonaManager"
+import OllamaManager from "./OllamaManager"
 import { useChatStore } from "@/lib/store"
 
 interface SideMenuProps {
@@ -91,6 +92,7 @@ export function SideMenu({
             </Select>
           </div>
           <PersonaManager />
+          <OllamaManager />
         </div>
       </SheetContent>
     </Sheet>

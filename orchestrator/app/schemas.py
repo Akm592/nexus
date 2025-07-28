@@ -65,3 +65,6 @@ class Persona(PersonaBase):
 
     class Config:
         from_attributes = True
+
+class ModelName(BaseModel):
+    name: str

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Persona } from './models';
-import { fetchAvailableModels, getPersonas } from './api';
+import { fetchAvailableModels, getPersonas, getOllamaModels } from './api';
 
 interface ChatState {
   conversations: any[]; // Replace with actual Conversation type
@@ -34,8 +34,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   fetchModels: async () => {
     try {
-      const models = await fetchAvailableModels();
-      set({ availableModels: models });
+      const openRouterModels = await fetchAvailableModels();
+      const ollamaModelsResponse = await getOllamaModels();
+      const ollamaModels = ollamaModelsResponse.map((model: any) => model.name);
+      const combinedModels = [...new Set([...openRouterModels, ...ollamaModels])];
+      set({ availableModels: combinedModels });
     } catch (error) {
       console.error("Failed to fetch models:", error);
     }

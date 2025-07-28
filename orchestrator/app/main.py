@@ -11,9 +11,29 @@ from .services import process_chat_request, generate_title_for_conversation, AVA
 from . import models, schemas, crud
 
 from typing import Optional
+from fastapi import APIRouter, Response
+from . import ollama_client
+
+ollama_router = APIRouter()
+
+@ollama_router.get("/ollama/models")
+async def get_ollama_models():
+    return await ollama_client.list_local_models()
+
+@ollama_router.post("/ollama/pull")
+async def pull_ollama_model(model_name: schemas.ModelName):
+    response = await ollama_client.pull_model(model_name.name)
+    return Response(content=response.text, media_type=response.headers['content-type'])
+
+@ollama_router.delete("/ollama/models/{model_name}")
+async def delete_ollama_model(model_name: str):
+    return await ollama_client.delete_model(model_name)
+
 
 
 app = FastAPI()
+
+app.include_router(ollama_router, prefix="/api")
 
 # Define RAG Service URL
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL")

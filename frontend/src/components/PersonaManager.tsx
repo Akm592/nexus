@@ -8,12 +8,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
-import { createPersona, getPersonas, updatePersona, deletePersona, fetchAvailableModels } from '@/lib/api';
+import { createPersona, getPersonas, updatePersona, deletePersona } from '@/lib/api';
 import { Persona, CreatePersonaData } from '@/lib/models';
 import { useChatStore } from '@/lib/store';
 
 export function PersonaManager() {
-  const { personas, fetchPersonas } = useChatStore();
+  const { personas, fetchPersonas, availableModels } = useChatStore();
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [isNewPersona, setIsNewPersona] = useState(false);
   const [formState, setFormState] = useState<CreatePersonaData>({
@@ -22,15 +22,10 @@ export function PersonaManager() {
     system_prompt: '',
     temperature: 0.7,
   });
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  
 
   useEffect(() => {
     fetchPersonas();
-    const loadModels = async () => {
-      const models = await fetchAvailableModels();
-      setAvailableModels(models);
-    };
-    loadModels();
   }, [fetchPersonas]);
 
   useEffect(() => {
