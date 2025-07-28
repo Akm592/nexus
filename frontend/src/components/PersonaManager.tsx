@@ -2,63 +2,84 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from './ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
-import { createPersona, getPersonas, updatePersona, deletePersona } from '@/lib/api';
+import { createPersona, updatePersona, deletePersona } from '@/lib/api';
 import { Persona, CreatePersonaData } from '@/lib/models';
 import { useChatStore } from '@/lib/store';
 
+const INITIAL_FORM_STATE: CreatePersonaData = {
+  name: '',
+  model_name: '',
+  system_prompt: '',
+  temperature: 0.7,
+};
+
 export function PersonaManager() {
   const { personas, fetchPersonas, availableModels } = useChatStore();
-  
+
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
-  const [isNewPersona, setIsNewPersona] = useState(false);
-  const [formState, setFormState] = useState<CreatePersonaData>({
-    name: '',
-    model_name: '',
-    system_prompt: '',
-    temperature: 0.7,
-  });
-  
+  const [isNewPersona, setIsNewPersona] = useState(true);
+  const [formState, setFormState] = useState<CreatePersonaData>(INITIAL_FORM_STATE);
 
   useEffect(() => {
     fetchPersonas();
-  }, [fetchPersonas]);
-
-  useEffect(() => {
-    if (selectedPersona) {
-      setFormState({
-        name: selectedPersona.name,
-        model_name: selectedPersona.model_name,
-        system_prompt: selectedPersona.system_prompt,
-        temperature: selectedPersona.temperature,
-      });
-      setIsNewPersona(false);
-    } else {
-      handleCreateNew(); // Set to new persona state
+    if (availableModels.length > 0) {
+      setFormState((prev) => ({
+        ...prev,
+        model_name: prev.model_name || availableModels[0],
+      }));
+       INITIAL_FORM_STATE.model_name = availableModels[0];
     }
-  }, [selectedPersona]);
-
+  }, [fetchPersonas, availableModels]);
+  
   const handleSelectPersona = (persona: Persona) => {
     setSelectedPersona(persona);
+    setIsNewPersona(false);
+    setFormState({
+      name: persona.name,
+      model_name: persona.model_name,
+      system_prompt: persona.system_prompt,
+      temperature: persona.temperature,
+    });
   };
 
   const handleCreateNew = () => {
     setSelectedPersona(null);
     setIsNewPersona(true);
-    setFormState({
-      name: '',
-      model_name: availableModels.length > 0 ? availableModels[0] : '', // Default to first available model
-      system_prompt: '',
-      temperature: 0.7,
-    });
+    setFormState(INITIAL_FORM_STATE);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setFormState((prev) => ({ ...prev, [name]: value }));
   };
@@ -80,42 +101,44 @@ export function PersonaManager() {
         await updatePersona(selectedPersona.id, formState);
       }
       await fetchPersonas();
-      // Optionally close dialog on save, or just clear selection
-      // For this example, we clear selection and reset to the "Create New" state
       handleCreateNew();
     } catch (error) {
-      console.error("Failed to save persona:", error);
-      alert("Failed to save persona. Please check the console for details.");
+      console.error('Failed to save persona:', error);
     }
   };
 
   const handleDelete = async () => {
-    if (selectedPersona && !isNewPersona) {
-      if (confirm(`Are you sure you want to delete the persona "${selectedPersona.name}"?`)) {
-        try {
-          await deletePersona(selectedPersona.id);
-          await fetchPersonas();
-          setSelectedPersona(null); // Clear selection after delete
-        } catch (error) {
-          console.error("Failed to delete persona:", error);
-          alert("Failed to delete persona. Please check the console for details.");
-        }
-      }
+    if (!selectedPersona || isNewPersona) return;
+    try {
+      await deletePersona(selectedPersona.id);
+      await fetchPersonas();
+      handleCreateNew();
+    } catch (error) {
+      console.error('Failed to delete persona:', error);
     }
   };
 
   return (
-    <Dialog>
+    <Dialog onOpenChange={() => handleCreateNew()}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="w-full rounded-lg">Manage Personas</Button>
+        <Button variant="outline" className="w-full rounded-lg">
+          Manage Personas
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-4xl h-[70vh] min-h-[600px] flex flex-col bg-background/80 backdrop-blur-md border rounded-2xl shadow-lg">
+      {/* IMPROVEMENT: Mode-aware glassmorphism.
+        - Light mode: High opacity (95%) background for readability.
+        - Dark mode: Lower opacity (80%) on a specific dark color for the classic glass effect.
+        - The `border` class now uses the theme's variable, adapting to both modes.
+      */}
+      <DialogContent className="sm:max-w-4xl h-[70vh] min-h-[600px] flex flex-col 
+        bg-gray-100 dark:bg-slate-950/80 
+        backdrop-blur-lg border rounded-2xl shadow-xl">
         <DialogHeader>
           <DialogTitle className="text-xl">Manage Personas</DialogTitle>
         </DialogHeader>
         <div className="flex flex-grow overflow-hidden gap-6 pt-2">
           {/* Left Pane: Persona List */}
-          <div className="w-1/3 border-r border-border/30 pr-6 flex flex-col gap-4">
+          <div className="w-1/3 border-r border-border/50 pr-6 flex flex-col gap-4">
             <Button onClick={handleCreateNew} className="w-full rounded-lg">
               + Create New Persona
             </Button>
@@ -124,7 +147,7 @@ export function PersonaManager() {
                 {personas.map((persona) => (
                   <Button
                     key={persona.id}
-                    variant={selectedPersona?.id === persona.id ? "secondary" : "ghost"}
+                    variant={selectedPersona?.id === persona.id ? 'secondary' : 'ghost'}
                     className="w-full justify-start mb-1 rounded-lg transition-all duration-200"
                     onClick={() => handleSelectPersona(persona)}
                   >
@@ -140,24 +163,25 @@ export function PersonaManager() {
             <ScrollArea className="h-full pr-2">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-foreground/80 mb-1.5">Persona Name</label>
+                  <label htmlFor="name" className="block text-sm font-medium text-foreground/80 mb-1.5">
+                    Persona Name
+                  </label>
                   <Input
-                    id="name"
-                    name="name"
-                    value={formState.name}
-                    onChange={handleChange}
-                    required
-                    className="bg-transparent rounded-lg border-border/50"
+                    id="name" name="name" value={formState.name} onChange={handleChange}
+                    required className="bg-transparent rounded-lg border-border/50 focus:border-primary"
                     placeholder="e.g., Sarcastic Assistant"
                   />
                 </div>
                 <div>
-                  <label htmlFor="model_name" className="block text-sm font-medium text-foreground/80 mb-1.5">Model</label>
+                  <label htmlFor="model_name" className="block text-sm font-medium text-foreground/80 mb-1.5">
+                    Model
+                  </label>
                   <Select onValueChange={handleModelChange} value={formState.model_name}>
                     <SelectTrigger className="w-full bg-transparent rounded-lg border-border/50">
                       <SelectValue placeholder="Select a model" />
                     </SelectTrigger>
-                    <SelectContent className="bg-background/90 backdrop-blur-md border-border/50 rounded-xl">
+                    {/* IMPROVEMENT: Consistent mode-aware styling for dropdowns. */}
+                    <SelectContent className="bg-background/95 dark:bg-slate-900/80 backdrop-blur-lg border rounded-xl">
                       {availableModels.map((model) => (
                         <SelectItem key={model} value={model} className="rounded-md">
                           {model}
@@ -167,15 +191,13 @@ export function PersonaManager() {
                   </Select>
                 </div>
                 <div>
-                  <label htmlFor="system_prompt" className="block text-sm font-medium text-foreground/80 mb-1.5">System Prompt</label>
+                  <label htmlFor="system_prompt" className="block text-sm font-medium text-foreground/80 mb-1.5">
+                    System Prompt
+                  </label>
                   <Textarea
-                    id="system_prompt"
-                    name="system_prompt"
-                    value={formState.system_prompt}
-                    onChange={handleChange}
-                    rows={8}
-                    required
-                    className="bg-transparent rounded-lg border-border/50 min-h-[150px]"
+                    id="system_prompt" name="system_prompt" value={formState.system_prompt}
+                    onChange={handleChange} rows={8} required
+                    className="bg-transparent rounded-lg border-border/50 min-h-[150px] focus:border-primary"
                     placeholder="You are a helpful assistant that always responds with a touch of sarcasm."
                   />
                 </div>
@@ -184,22 +206,37 @@ export function PersonaManager() {
                     Temperature: {formState.temperature.toFixed(2)}
                   </label>
                   <Slider
-                    id="temperature"
-                    name="temperature"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={[formState.temperature]}
-                    onValueChange={handleSliderChange}
+                    id="temperature" name="temperature" min={0} max={1} step={0.01}
+                    value={[formState.temperature]} onValueChange={handleSliderChange}
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
                   {!isNewPersona && selectedPersona && (
-                    <Button type="button" variant="destructive" onClick={handleDelete} className="rounded-lg">
-                      Delete
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="destructive" className="rounded-lg">
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      {/* IMPROVEMENT: Consistent mode-aware styling for dialogs. */}
+                      <AlertDialogContent className="bg-background/95 dark:bg-slate-900/80 backdrop-blur-lg border">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the
+                            "{selectedPersona.name}" persona.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDelete}>Continue</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
-                  <Button type="submit" className="rounded-lg">{isNewPersona ? "Create Persona" : "Save Changes"}</Button>
+                  <Button type="submit" className="rounded-lg">
+                    {isNewPersona ? 'Create Persona' : 'Save Changes'}
+                  </Button>
                 </div>
               </form>
             </ScrollArea>

@@ -59,7 +59,7 @@ export function SideMenu() {
               <SelectTrigger className="col-span-2">
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60 dark:bg-black/95 bg-white/95">
                 {(availableModels || []).map((model) => (
                   <SelectItem key={model} value={model}>
                     {model}
@@ -71,7 +71,7 @@ export function SideMenu() {
                       Manage Local Models...
                     </SelectItem>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[600px] bg-background/80 backdrop-blur-lg">
+                  <DialogContent className="sm:max-w-[600px]">
                     <DialogHeader>
                       <DialogTitle>Ollama Model Management</DialogTitle>
                     </DialogHeader>
@@ -84,12 +84,12 @@ export function SideMenu() {
           <div className="grid grid-cols-3 items-center gap-4">
             <label htmlFor="persona" className="text-sm text-muted-foreground">
               Persona
-            </label>
-            <Select value={activePersonaId || ""} onValueChange={setActivePersonaId}>
+            </label>      
+            <Select value={activePersonaId || ""} onValueChange={setActivePersonaId} >
               <SelectTrigger className="col-span-2">
                 <SelectValue placeholder="Select a persona" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-60 dark:bg-black/95 bg-white/95">
                 {personas.map((persona) => (
                   <SelectItem key={persona.id} value={persona.id}>
                     {persona.name}

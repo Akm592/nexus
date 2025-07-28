@@ -38,40 +38,35 @@ async def process_chat_request(message: str, session_id: str, model_name: Option
 
     # Validate RAG_SERVICE_URL using Pydantic's AnyUrl for robust validation.
     try:
-        AnyUrl(RAG_SERVICE_URL) # This will raise a ValueError if the URL is invalid
+        if RAG_SERVICE_URL:
+            AnyUrl(RAG_SERVICE_URL)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Invalid RAG_SERVICE_URL configuration: {e}")
 
 
-    # 1. RETRIEVE CONTEXT FROM RAG SERVICE
+    # 1. RETRIEVE CONTEXT FROM RAG SERVICE (if configured)
     context_str = ""
     sources = []
-    try:
-        async with httpx.AsyncClient() as client:
-            # Ensure the URL is explicitly formed with http:// or https://
-            rag_url = RAG_SERVICE_URL if RAG_SERVICE_URL.startswith(("http://", "https://")) else f"http://{RAG_SERVICE_URL}"
-            response = await client.post(f"{rag_url}/retrieve", json={"query": message, "conversation_id": session_id})
-            response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
-            retrieved_docs = response.json()
-            if retrieved_docs:
-                context_str = "\n\n---\n\n".join([doc['page_content'] for doc in retrieved_docs]) # Changed from 'content' to 'page_content'
-                sources = [doc['metadata'] for doc in retrieved_docs]
-    except httpx.RequestError as e:
-        logging.error(f"RAG service request failed: {e}")
-        return {"reply": f"Error: Could not connect to RAG service. ({e})", "sources": []}
-    except httpx.HTTPStatusError as e:
-        logging.error(f"RAG service returned HTTP error: {e.response.status_code} - {e.response.text}")
-        return {"reply": f"Error: RAG service returned an error. ({e.response.status_code})", "sources": []}
-    except Exception as e:
-        logging.error(f"Unexpected error during RAG service call: {e}")
-        return {"reply": f"Error: An unexpected error occurred with RAG service. ({e})", "sources": []}
+    if RAG_SERVICE_URL:
+        try:
+            async with httpx.AsyncClient() as client:
+                rag_url = RAG_SERVICE_URL if RAG_SERVICE_URL.startswith(("http://", "https://")) else f"http://{RAG_SERVICE_URL}"
+                response = await client.post(f"{rag_url}/retrieve", json={"query": message, "conversation_id": session_id})
+                response.raise_for_status()
+                retrieved_docs = response.json()
+                if retrieved_docs:
+                    context_str = "\n\n---\n\n".join([doc['page_content'] for doc in retrieved_docs])
+                    sources = [doc['metadata'] for doc in retrieved_docs]
+        except httpx.RequestError as e:
+            logging.error(f"RAG service request failed: {e}")
+            # Non-fatal error: proceed without context but inform the user.
+            return {"reply": "I am having trouble accessing my knowledge base right now. I can still chat, but my responses will be limited.", "sources": []}
+        except Exception as e:
+            logging.error(f"Unexpected error during RAG service call: {e}")
+            # Non-fatal error: proceed without context
+            pass # Or return a specific error message if RAG is critical
 
-    # --- START: MEMORY SETUP ---
-    # This completely replaces loading from the SQL DB for memory purposes.
-    # The SQL DB now serves as permanent, long-term storage, not active memory.
-    # Redis history is now managed by RunnableWithMessageHistory
-
-    # Initialize the LLM with the selected model and temperature
+    # Initialize the LLM
     ollama_models = await ollama_client.list_local_models()
     local_model_names = [m['name'] for m in ollama_models.get('models', [])]
 
@@ -88,14 +83,18 @@ async def process_chat_request(message: str, session_id: str, model_name: Option
             model=final_model_name,
             openai_api_key=os.getenv("OPENROUTER_API_KEY"),
             openai_api_base="https://openrouter.ai/api/v1",
-            temperature=temperature if temperature is not None else 0.7, # Use persona temperature or default
+            temperature=temperature if temperature is not None else 0.7,
         )
 
-    # Create the conversation chain
-    # Using RunnableWithMessageHistory as recommended by LangChain for managing chat history
-    system_message_content = system_prompt if system_prompt else "You are a helpful AI assistant."
+    # Define a better default system prompt that requests Markdown
+    default_system_prompt = "You are a helpful AI assistant. Format your responses using Markdown. Use headings, lists, bold text, and code blocks where appropriate to improve readability."
+    
+    # Use the user's provided system prompt or the new default
+    system_message_content = system_prompt if system_prompt else default_system_prompt
+
+    # Append RAG context instructions if context was retrieved
     if context_str:
-        system_message_content += f"\n\nAnswer the user's question based only on the provided context. If the answer is not in the context, state that you do not know. Context: {context_str}"
+        system_message_content += f"\n\nUse the following context to answer the user's question. If the answer is not in the context, state that you do not have that information. Do not mention the context in your answer. \n\n---\n\nCONTEXT:\n{context_str}"
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_message_content),
@@ -103,7 +102,6 @@ async def process_chat_request(message: str, session_id: str, model_name: Option
         ("human", "{input}"),
     ])
 
-    # Define a function to get session history
     def get_session_history(session_id: str) -> RedisChatMessageHistory:
         return RedisChatMessageHistory(
             session_id=session_id,
@@ -117,14 +115,13 @@ async def process_chat_request(message: str, session_id: str, model_name: Option
         history_messages_key="history",
     )
 
-    # 3. CALL THE LLM with the raw user message
     try:
-        llm_response = conversation.invoke({"input": message}, config={"configurable": {"session_id": session_id}}) # Pass the raw user message
+        llm_response = await conversation.ainvoke({"input": message}, config={"configurable": {"session_id": session_id}})
         return {"reply": llm_response.content, "sources": sources}
     except Exception as e:
-        print(f"ERROR: LLM invocation failed: {e}")
-        return {"reply": f"Error: LLM response failed. ({e})", "sources": []}
-
+        logging.error(f"LLM invocation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"LLM response failed: {e}")
+    
 async def generate_title_for_conversation(conversation_id: str, SessionLocal):
     db = SessionLocal()
     try:
