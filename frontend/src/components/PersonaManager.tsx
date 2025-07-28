@@ -14,6 +14,7 @@ import { useChatStore } from '@/lib/store';
 
 export function PersonaManager() {
   const { personas, fetchPersonas, availableModels } = useChatStore();
+  
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [isNewPersona, setIsNewPersona] = useState(false);
   const [formState, setFormState] = useState<CreatePersonaData>({

@@ -24,13 +24,12 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const { activePersonaId } = useChatStore();
+  const { activePersonaId, selectedModel, setSelectedModel, availableModels, fetchModels } = useChatStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("deepseek/deepseek-r1-0528-qwen3-8b:free");
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  
   const [currentSessionId, setCurrentSessionId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -95,24 +94,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     fetchConversations();
-    const fetchModels = async () => {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/models`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch available models");
-        }
-        const data = await response.json();
-        setAvailableModels(data.models);
-        if (data.models.length > 0 && !data.models.includes(selectedModel)) {
-          setSelectedModel(data.models[0]); // Set default if current model is not available
-        }
-      } catch (error) {
-        console.error("Error fetching models:", error);
-        toast.error("Failed to load available models.");
-      }
-    };
-    fetchModels();
-  }, []);
+    fetchModels(); // Fetch models using the store's action
+  }, [fetchModels]);
 
   const handleNewChat = async () => {
     try {
@@ -319,7 +302,7 @@ export default function ChatPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <SideMenu selectedModel={selectedModel} setSelectedModel={setSelectedModel} availableModels={availableModels} />
+              <SideMenu />
               <ThemeToggle />
               <label htmlFor="file-upload" className="cursor-pointer">
                 <Button variant="ghost" size="icon" aria-label="Upload Document" asChild>

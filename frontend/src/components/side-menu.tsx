@@ -14,24 +14,21 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PersonaManager } from "./PersonaManager"
-import OllamaManager from "./OllamaManager"
+import { OllamaManager } from "./OllamaManager"
 import { useChatStore } from "@/lib/store"
 
-interface SideMenuProps {
-  selectedModel: string
-  setSelectedModel: (model: string) => void
-  availableModels: string[]
-}
-
-export function SideMenu({
-  selectedModel,
-  setSelectedModel,
-  availableModels,
-}: SideMenuProps) {
-  const { personas, activePersonaId, setActivePersonaId, fetchPersonas } = useChatStore();
+export function SideMenu() {
+  const { personas, activePersonaId, setActivePersonaId, fetchPersonas, availableModels, selectedModel, setSelectedModel, fetchModels } = useChatStore();
 
   React.useEffect(() => {
     fetchPersonas();
@@ -62,15 +59,25 @@ export function SideMenu({
               <SelectTrigger className="col-span-2">
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
-              {/* For full consistency, you could also apply glassmorphism
-                to the SelectContent component in its own file (`select.tsx`).
-              */}
               <SelectContent>
                 {(availableModels || []).map((model) => (
                   <SelectItem key={model} value={model}>
                     {model}
                   </SelectItem>
                 ))}
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <SelectItem value="manage-ollama-models">
+                      Manage Local Models...
+                    </SelectItem>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[600px] bg-background/80 backdrop-blur-lg">
+                    <DialogHeader>
+                      <DialogTitle>Ollama Model Management</DialogTitle>
+                    </DialogHeader>
+                    <OllamaManager onModelChange={fetchModels} />
+                  </DialogContent>
+                </Dialog>
               </SelectContent>
             </Select>
           </div>
@@ -92,7 +99,7 @@ export function SideMenu({
             </Select>
           </div>
           <PersonaManager />
-          <OllamaManager />
+          
         </div>
       </SheetContent>
     </Sheet>

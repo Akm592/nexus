@@ -9,6 +9,8 @@ interface ChatState {
   availableModels: string[];
   personas: Persona[];
   activePersonaId: string | null;
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
   fetchConversations: () => void;
   setActiveConversationId: (id: string | null) => void;
   fetchMessages: (conversationId: string) => void;
@@ -24,6 +26,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   availableModels: [],
   personas: [],
   activePersonaId: null,
+  selectedModel: "deepseek/deepseek-r1-0528-qwen3-8b:free", // Default model
+  setSelectedModel: (model) => set({ selectedModel: model }),
 
   fetchConversations: async () => {
     // Implement fetching conversations
