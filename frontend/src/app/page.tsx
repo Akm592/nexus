@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, FormEvent, useRef, useEffect, ChangeEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -339,7 +341,7 @@ export default function ChatPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
                     className={`flex items-start gap-3 ${msg.sender === "user" ? "justify-end" : ""}`}>
-                    {msg.sender === 'bot' && (
+                      {msg.sender === 'bot' && (
                       <Avatar className="w-9 h-9 border bg-muted">
                         <AvatarFallback className="bg-primary text-primary-foreground"><Bot size={20} /></AvatarFallback>
                       </Avatar>
@@ -365,7 +367,13 @@ export default function ChatPage() {
                           className="flex-grow rounded-md py-2 px-3 text-base"
                         />
                       ) : (
-                        <p className="text-base whitespace-pre-wrap">{msg.text}</p>
+                        <div className="prose dark:prose-invert max-w-none">
+                          <ReactMarkdown
+                            remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+                          >
+                            {msg.text}
+                          </ReactMarkdown>
+                        </div>
                       )}
                       {msg.sender === 'bot' && (
                         <div className="flex items-center justify-between mt-2">
@@ -391,6 +399,7 @@ export default function ChatPage() {
                           </Button>
                         </div>
                       )}
+                    </div>
                       {msg.sender === 'user' && editingMessageId !== msg.id && (
                         <div className="flex justify-end mt-2">
                           <Button
@@ -427,7 +436,6 @@ export default function ChatPage() {
                           </Button>
                         </div>
                       )}
-                    </div>
                     {msg.sender === 'user' && (
                        <Avatar className="w-9 h-9 border bg-muted">
                         <AvatarFallback className="bg-accent text-accent-foreground"><User size={20} /></AvatarFallback>
