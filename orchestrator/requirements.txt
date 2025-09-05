@@ -1,9 +1,13 @@
 fastapi
 uvicorn
 langchain
+langchain-community
 langchain-openai
+langchain-google-genai
+langchain-groq
 python-dotenv
 httpx
 SQLAlchemy
 ulid-py
-redis
+langgraph
+neo4j

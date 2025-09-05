@@ -1,4 +1,3 @@
-import magic # For file type validation
 import logging
 import os
 import shutil
@@ -51,13 +50,6 @@ async def upload_document(
     finally:
         file.file.close()
     
-    # 3. Content Validation with python-magic (More secure)
-    mime = magic.Magic(mime=True)
-    file_type = mime.from_file(temp_file_path)
-    if file_type != "application/pdf":
-        os.unlink(temp_file_path) # Clean up the invalid temp file
-        raise HTTPException(status_code=400, detail=f"File content validation failed. Expected PDF, but found {file_type}.")
-
     # --- End of New Validation Logic ---
 
     # NEW: Add the time-consuming ingestion process to the background

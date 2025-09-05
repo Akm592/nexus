@@ -9,7 +9,19 @@ import ulid
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Define the default database URL, creating the database directory if it doesn't exist.
+# The database is located in the 'database' directory at the project root.
+DATABASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'database')
+if not os.path.exists(DATABASE_DIR):
+    os.makedirs(DATABASE_DIR)
+    print(f"INFO: Created database directory: {DATABASE_DIR}")
+else:
+    print(f"INFO: Database directory already exists: {DATABASE_DIR}")
+DEFAULT_DATABASE_URL = f"sqlite:///{os.path.join(DATABASE_DIR, 'nexus.db')}"
+print(f"INFO: Using DATABASE_URL: {DEFAULT_DATABASE_URL}")
+
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+
 
 # For SQLite, check_same_thread must be False to allow multiple threads to interact with the database.
 # This is common in web applications where each request might be handled in a different thread.

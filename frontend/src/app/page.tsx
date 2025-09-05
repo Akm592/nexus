@@ -9,8 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Bot, User, Settings, MessageSquarePlus, Copy, Upload, Pencil } from "lucide-react";
-import { v4 as uuidv4 } from 'uuid';
+import {
+  Send,
+  Bot,
+  User,
+  Settings,
+  MessageSquarePlus,
+  Copy,
+  Upload,
+  Pencil,
+} from "lucide-react";
+import { v4 as uuidv4 } from "uuid";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SideMenu } from "@/components/side-menu";
 import { ChatInput } from "@/components/chat-input";
@@ -26,12 +35,18 @@ interface Message {
 }
 
 export default function ChatPage() {
-  const { activePersonaId, selectedModel, setSelectedModel, availableModels, fetchModels } = useChatStore();
+  const {
+    activePersonaId,
+    selectedModel,
+    setSelectedModel,
+    availableModels,
+    fetchModels,
+  } = useChatStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
+
   const [currentSessionId, setCurrentSessionId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -40,9 +55,15 @@ export default function ChatPage() {
   const [editedMessageContent, setEditedMessageContent] = useState<string>("");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [isConversationsLoading, setIsConversationsLoading] = useState(true);
+
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+      scrollAreaRef.current.scrollTo({
+        top: scrollAreaRef.current.scrollHeight,
+        behavior: "smooth",
+      });
     }
   }, [messages]);
 
@@ -53,13 +74,12 @@ export default function ChatPage() {
     }
   }, [error]);
 
-  const [conversations, setConversations] = useState<any[]>([]);
-  const [isConversationsLoading, setIsConversationsLoading] = useState(true);
-
   const fetchConversations = async () => {
     try {
       setIsConversationsLoading(true);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/conversations`);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/conversations`
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch conversations");
       }
@@ -82,12 +102,20 @@ export default function ChatPage() {
 
   const fetchMessages = async (sessionId: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/conversations/${sessionId}/messages`);
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/conversations/${sessionId}/messages`
+      );
       if (!response.ok) {
         throw new Error("Failed to fetch messages");
       }
       const data = await response.json();
-      setMessages(data.map((msg: any) => ({ id: msg.id, text: msg.content, sender: msg.role })));
+      setMessages(
+        data.map((msg: any) => ({
+          id: msg.id,
+          text: msg.content,
+          sender: msg.role,
+        }))
+      );
     } catch (error) {
       console.error("Error fetching messages:", error);
       setError(`Failed to load messages for session ${sessionId}.`);
@@ -96,16 +124,21 @@ export default function ChatPage() {
 
   useEffect(() => {
     fetchConversations();
-    fetchModels(); // Fetch models using the store's action
+    fetchModels();
   }, [fetchModels]);
 
   const handleNewChat = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/conversations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: `New Chat ${new Date().toLocaleString()}` }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/conversations`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `New Chat ${new Date().toLocaleString()}`,
+          }),
+        }
+      );
       if (!response.ok) {
         throw new Error("Failed to create new conversation");
       }
@@ -122,21 +155,23 @@ export default function ChatPage() {
 
   const handleDeleteSession = async (sessionId: string) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/conversations/${sessionId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/conversations/${sessionId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to delete conversation");
       }
 
-      
-
-      const updatedConversations = conversations.filter((session) => session.id !== sessionId);
+      const updatedConversations = conversations.filter(
+        (session) => session.id !== sessionId
+      );
       setConversations(updatedConversations);
       toast.success("Conversation deleted successfully.");
 
-      // If the deleted session was the current one, switch to the first available session or create a new one
       if (currentSessionId === sessionId) {
         if (updatedConversations.length > 0) {
           setCurrentSessionId(updatedConversations[0].id);
@@ -154,28 +189,26 @@ export default function ChatPage() {
 
   const handleSelectSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
-    setMessages([]); // Clear messages immediately for better UX
+    setMessages([]);
     fetchMessages(sessionId);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
       const file = event.target.files[0];
-      // Validate file type before sending
       if (file.type !== "application/pdf") {
         toast.error("Only PDF files are allowed.");
-        event.target.value = ''; // Clear the input
+        event.target.value = "";
         return;
       }
       setSelectedFile(file);
       handleUpload(file);
-      // Reset the input value to allow re-uploading the same file
-      event.target.value = '';
+      event.target.value = "";
     }
   };
 
   const handleUpload = async (file: File) => {
-    if (!file || !currentSessionId) return; // Ensure conversation_id is available
+    if (!file || !currentSessionId) return;
 
     setIsUploading(true);
     setError(null);
@@ -183,13 +216,16 @@ export default function ChatPage() {
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("conversation_id", currentSessionId); // Pass conversation_id as form data
+    formData.append("conversation_id", currentSessionId);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_RAG_SERVICE_URL}/upload`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_RAG_SERVICE_URL}/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -209,20 +245,26 @@ export default function ChatPage() {
     }
   };
 
+  const handleClearFile = () => {
+    setSelectedFile(null);
+  };
+
   const handleSaveEdit = async (messageId: string) => {
     try {
-      // Optimistically update the UI
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg.id === messageId ? { ...msg, text: editedMessageContent } : msg
         )
       );
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: editedMessageContent }),
-      });
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/messages/${messageId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: editedMessageContent }),
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -234,8 +276,7 @@ export default function ChatPage() {
       console.error("Error updating message:", error);
       setError(error.message || "Failed to update message.");
       toast.error("Failed to update message.");
-      // Revert optimistic update if API call fails
-      fetchMessages(currentSessionId); // Re-fetch messages to ensure consistency
+      fetchMessages(currentSessionId);
     } finally {
       setEditingMessageId(null);
       setEditedMessageContent("");
@@ -256,7 +297,11 @@ export default function ChatPage() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input, conversation_id: currentSessionId, persona_id: activePersonaId }),
+        body: JSON.stringify({
+          message: input,
+          conversation_id: currentSessionId,
+          persona_id: activePersonaId,
+        }),
       });
 
       if (!response.ok) {
@@ -265,11 +310,20 @@ export default function ChatPage() {
       }
 
       const data = await response.json();
-      const botMessage: Message = { id: uuidv4(), text: data.reply, sender: "bot", sources: data.sources };
+      const botMessage: Message = {
+        id: uuidv4(),
+        text: data.reply,
+        sender: "bot",
+        sources: data.sources,
+      };
       setMessages((prev) => [...prev, botMessage]);
     } catch (error: any) {
       console.error("Failed to fetch chat response:", error);
-      const errorMessage: Message = { id: uuidv4(), text: `Sorry, something went wrong: ${error.message}`, sender: "bot" };
+      const errorMessage: Message = {
+        id: uuidv4(),
+        text: `Sorry, something went wrong: ${error.message}`,
+        sender: "bot",
+      };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
@@ -281,12 +335,26 @@ export default function ChatPage() {
       {/* Sidebar */}
       <div className="w-1/4 border-r flex flex-col p-4">
         <CardHeader className="border-b pb-4 mb-4 flex-row items-center justify-between">
-          <CardTitle className="text-2xl font-bold text-primary">Nexus AI</CardTitle>
-          <Button variant="ghost" size="icon" aria-label="New Chat" onClick={handleNewChat} className="text-primary hover:bg-primary/10">
+          <CardTitle className="text-2xl font-bold text-primary">
+            Nexus AI
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="New Chat"
+            onClick={handleNewChat}
+            className="text-primary hover:bg-primary/10"
+          >
             <MessageSquarePlus className="h-6 w-6" />
           </Button>
         </CardHeader>
-        <ConversationHistory sessions={conversations} onSelectSession={handleSelectSession} onDeleteSession={handleDeleteSession} currentSessionId={currentSessionId} isLoading={isConversationsLoading} />
+        <ConversationHistory
+          sessions={conversations}
+          onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
+          currentSessionId={currentSessionId}
+          isLoading={isConversationsLoading}
+        />
       </div>
 
       {/* Main Chat Panel */}
@@ -296,19 +364,30 @@ export default function ChatPage() {
             <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
                 <AvatarImage src="/nexus-logo.png" alt="Nexus AI" />
-                <AvatarFallback className="bg-primary text-primary-foreground"><Bot size={24} /></AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  <Bot size={24} />
+                </AvatarFallback>
               </Avatar>
               <div>
                 <CardTitle className="text-xl font-semibold">Chat</CardTitle>
-                <p className="text-sm text-muted-foreground">Your conversational AI assistant</p>
+                <p className="text-sm text-muted-foreground">
+                  Your conversational AI assistant
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <SideMenu />
               <ThemeToggle />
               <label htmlFor="file-upload" className="cursor-pointer">
-                <Button variant="ghost" size="icon" aria-label="Upload Document" asChild>
-                  <span><Upload className="h-5 w-5" /></span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Upload Document"
+                  asChild
+                >
+                  <span>
+                    <Upload className="h-5 w-5" />
+                  </span>
                 </Button>
               </label>
               <input
@@ -318,10 +397,18 @@ export default function ChatPage() {
                 onChange={handleFileChange}
                 accept=".pdf"
               />
-              {isUploading && <span className="text-sm text-muted-foreground ml-2">Uploading...</span>}
+              {isUploading && (
+                <span className="text-sm text-muted-foreground ml-2">
+                  Uploading...
+                </span>
+              )}
             </div>
           </CardHeader>
-          <CardContent className="flex-1 p-6 overflow-y-auto" ref={scrollAreaRef}>
+
+          <CardContent
+            className="flex-1 p-6 overflow-y-auto"
+            ref={scrollAreaRef}
+          >
             {error && (
               <div className="bg-destructive/20 text-destructive-foreground p-3 rounded-md text-center text-sm mb-4 border border-destructive">
                 Error: {error}
@@ -340,28 +427,37 @@ export default function ChatPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3 }}
-                    className={`flex items-start gap-3 ${msg.sender === "user" ? "justify-end" : ""}`}>
-                      {msg.sender === 'bot' && (
+                    className={`flex items-start gap-3 ${
+                      msg.sender === "user" ? "justify-end" : ""
+                    }`}
+                  >
+                    {msg.sender === "bot" && (
                       <Avatar className="w-9 h-9 border bg-muted">
-                        <AvatarFallback className="bg-primary text-primary-foreground"><Bot size={20} /></AvatarFallback>
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          <Bot size={20} />
+                        </AvatarFallback>
                       </Avatar>
                     )}
                     <div
-                      className={`p-4 rounded-xl max-w-xl shadow-sm ${msg.sender === "user"
+                      className={`p-4 rounded-xl max-w-xl shadow-sm ${
+                        msg.sender === "user"
                           ? "bg-primary text-primary-foreground self-end rounded-br-none"
                           : "bg-muted rounded-tl-none border border-border"
-                      }`}>
+                      }`}
+                    >
                       {editingMessageId === msg.id ? (
                         <Input
                           value={editedMessageContent}
-                          onChange={(e) => setEditedMessageContent(e.target.value)}
+                          onChange={(e) =>
+                            setEditedMessageContent(e.target.value)
+                          }
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === "Enter") {
                               handleSaveEdit(msg.id);
                             }
-                            if (e.key === 'Escape') {
+                            if (e.key === "Escape") {
                               setEditingMessageId(null);
-                              setEditedMessageContent('');
+                              setEditedMessageContent("");
                             }
                           }}
                           className="flex-grow rounded-md py-2 px-3 text-base"
@@ -369,21 +465,28 @@ export default function ChatPage() {
                       ) : (
                         <div className="prose dark:prose-invert max-w-none">
                           <ReactMarkdown
-                            remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+                            remarkPlugins={[
+                              [remarkGfm, { singleTilde: false }],
+                            ]}
                           >
                             {msg.text}
                           </ReactMarkdown>
                         </div>
                       )}
-                      {msg.sender === 'bot' && (
+
+                      {msg.sender === "bot" && (
                         <div className="flex items-center justify-between mt-2">
-                           {msg.sources && msg.sources.length > 0 && (
+                          {msg.sources && msg.sources.length > 0 && (
                             <div className="text-xs text-muted-foreground">
                               <h4 className="font-semibold mb-1">Sources:</h4>
                               <div className="flex flex-wrap gap-2">
                                 {msg.sources.map((source, index) => (
-                                  <span key={index} className="bg-secondary px-2 py-1 rounded-full text-secondary-foreground text-xs font-medium" title={source.source}>
-                                    {source.source.split('/').pop()}
+                                  <span
+                                    key={index}
+                                    className="bg-secondary px-2 py-1 rounded-full text-secondary-foreground text-xs font-medium"
+                                    title={source.source}
+                                  >
+                                    {source.source.split("/").pop()}
                                   </span>
                                 ))}
                               </div>
@@ -393,52 +496,59 @@ export default function ChatPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:bg-muted/50 ml-auto"
-                            onClick={() => navigator.clipboard.writeText(msg.text)}
+                            onClick={() =>
+                              navigator.clipboard.writeText(msg.text)
+                            }
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
                       )}
                     </div>
-                      {msg.sender === 'user' && editingMessageId !== msg.id && (
-                        <div className="flex justify-end mt-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:bg-muted/50"
-                            onClick={() => {
-                              setEditingMessageId(msg.id);
-                              setEditedMessageContent(msg.text);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      )}
-                      {msg.sender === 'user' && editingMessageId === msg.id && (
-                        <div className="flex justify-end mt-2 space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingMessageId(null);
-                              setEditedMessageContent('');
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => handleSaveEdit(msg.id)}
-                          >
-                            Save
-                          </Button>
-                        </div>
-                      )}
-                    {msg.sender === 'user' && (
-                       <Avatar className="w-9 h-9 border bg-muted">
-                        <AvatarFallback className="bg-accent text-accent-foreground"><User size={20} /></AvatarFallback>
+
+                    {msg.sender === "user" && editingMessageId !== msg.id && (
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:bg-muted/50"
+                          onClick={() => {
+                            setEditingMessageId(msg.id);
+                            setEditedMessageContent(msg.text);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {msg.sender === "user" && editingMessageId === msg.id && (
+                      <div className="flex justify-end mt-2 space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingMessageId(null);
+                            setEditedMessageContent("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleSaveEdit(msg.id)}
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    )}
+
+                    {msg.sender === "user" && (
+                      <Avatar className="w-9 h-9 border bg-muted">
+                        <AvatarFallback className="bg-accent text-accent-foreground">
+                          <User size={20} />
+                        </AvatarFallback>
                       </Avatar>
                     )}
                   </motion.div>
@@ -446,6 +556,7 @@ export default function ChatPage() {
               </div>
             </ScrollArea>
           </CardContent>
+
           <div className="p-4 border-t bg-background/50 backdrop-blur-sm">
             <ChatInput
               input={input}
@@ -454,6 +565,8 @@ export default function ChatPage() {
               handleSubmit={handleSubmit}
               isLoading={isLoading}
               isUploading={isUploading}
+              fileName={selectedFile ? selectedFile.name : null}
+              handleClearFile={handleClearFile}
             />
           </div>
         </Card>
