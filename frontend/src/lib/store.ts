@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { Persona } from './models';
-import { fetchAvailableModels, getPersonas } from './api';
+import { fetchAvailableModels, getPersonas, getOllamaModels } from './api';
 
 interface ChatState {
   conversations: any[]; // Replace with actual Conversation type
@@ -9,6 +9,8 @@ interface ChatState {
   availableModels: string[];
   personas: Persona[];
   activePersonaId: string | null;
+  selectedModel: string;
+  setSelectedModel: (model: string) => void;
   fetchConversations: () => void;
   setActiveConversationId: (id: string | null) => void;
   fetchMessages: (conversationId: string) => void;
@@ -24,6 +26,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   availableModels: [],
   personas: [],
   activePersonaId: null,
+  selectedModel: "deepseek/deepseek-r1-0528-qwen3-8b:free", // Default model
+  setSelectedModel: (model) => set({ selectedModel: model }),
 
   fetchConversations: async () => {
     // Implement fetching conversations
@@ -34,8 +38,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   fetchModels: async () => {
     try {
-      const models = await fetchAvailableModels();
-      set({ availableModels: models });
+      const openRouterModels = await fetchAvailableModels();
+      const ollamaModelsResponse = await getOllamaModels();
+      const ollamaModels = ollamaModelsResponse.map((model: any) => model.name);
+      const combinedModels = [...new Set([...openRouterModels, ...ollamaModels])];
+      set({ availableModels: combinedModels });
     } catch (error) {
       console.error("Failed to fetch models:", error);
     }

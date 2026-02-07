@@ -2,18 +2,38 @@ import logging
 import os
 import httpx # Added for RAG service communication
 from fastapi import FastAPI, Depends, HTTPException, status, BackgroundTasks
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware # Added for CORS
 
-from .services import process_chat_request, generate_title_for_conversation, AVAILABLE_MODELS
+from .services import process_chat_request, AVAILABLE_MODELS
+from .tasks import generate_title_for_conversation
 from . import models, schemas, crud
 
 from typing import Optional
+from fastapi import APIRouter, Response
+from . import ollama_client
+
+ollama_router = APIRouter()
+
+@ollama_router.get("/ollama/models")
+async def get_ollama_models():
+    return await ollama_client.list_local_models()
+
+@ollama_router.post("/ollama/pull")
+async def pull_ollama_model(model_name: schemas.ModelName):
+    response = await ollama_client.pull_model(model_name.name)
+    return Response(content=response.text, media_type=response.headers['content-type'])
+
+@ollama_router.delete("/ollama/models/{model_name}")
+async def delete_ollama_model(model_name: str):
+    return await ollama_client.delete_model(model_name)
+
 
 
 app = FastAPI()
+
+app.include_router(ollama_router, prefix="/api")
 
 # Define RAG Service URL
 RAG_SERVICE_URL = os.getenv("RAG_SERVICE_URL")
@@ -42,13 +62,8 @@ def get_db():
     finally:
         db.close()
 
-class ChatRequest(BaseModel):
-    message: str
-    conversation_id: str
-    persona_id: Optional[str] = None # New: Optional persona_id
-
 @app.post("/chat")
-async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def process_chat(request: schemas.ChatRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Save user message
     crud.add_message(db, request.conversation_id, "user", request.message)
 
@@ -71,7 +86,8 @@ async def process_chat(request: ChatRequest, background_tasks: BackgroundTasks, 
         model_name, # Pass persona's model_name or None
         system_prompt, # Pass persona's system_prompt or None
         temperature, # Pass persona's temperature or None
-        db
+        db,
+        request.use_rag
     )
 
     # Save bot message after the full response is generated, only if it's not an error message
